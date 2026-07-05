@@ -97,14 +97,18 @@ async function resolveImageUrl(
     return uploadedMediaCache.get(url)!
 
   try {
-    const res = await fetch(url)
+    const res = await fetchWithTimeout(url)
     const blob = await res.blob()
 
     return await new Promise<string>((resolve) => {
       const reader = new FileReader()
       reader.readAsDataURL(blob)
       reader.onloadend = () => {
-        const result = reader.result as string
+        const result = reader.result
+        if (typeof result !== 'string') {
+          resolve(ActivityAssets.Logo)
+          return
+        }
         cacheSet(uploadedMediaCache, url, result)
         resolve(result)
       }
@@ -130,7 +134,7 @@ function getUserId(): string {
         : servers.find(
             (s: Server) =>
               s.Id
-              === new URLSearchParams(location.hash.split('?')[1]).get('serverId'),
+              === new URLSearchParams(location.hash.split('?')[1] ?? '').get('serverId'),
           )
     )?.UserId ?? ''
   }
@@ -151,7 +155,7 @@ async function obtainMediaInfo(itemId: string): Promise<MediaInfo | null> {
     return mediaInfoCache.get(itemId)!
 
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `${jellyfinBasenameUrl()}Users/${getUserId()}/Items/${itemId}`,
       { credentials: 'include', headers: authHeaders() },
     )
@@ -169,17 +173,20 @@ async function obtainMediaInfo(itemId: string): Promise<MediaInfo | null> {
 }
 
 async function searchMedia(searchTerm: string): Promise<MediaInfo[]> {
-  if (searchMediaCache.has(searchTerm))
-    return searchMediaCache.get(searchTerm)!
-
   if (/- S\d+:E\d+ -/.test(searchTerm))
     searchTerm = searchTerm.split(' - ').pop() ?? ''
 
   searchTerm = searchTerm.replace(/\(\d{4}\)/, '').trim()
 
+  if (!searchTerm)
+    return []
+
+  if (searchMediaCache.has(searchTerm))
+    return searchMediaCache.get(searchTerm)!
+
   try {
-    const res = await fetch(
-      `${jellyfinBasenameUrl()}Users/${getUserId()}/Items/?searchTerm=${searchTerm}`
+    const res = await fetchWithTimeout(
+      `${jellyfinBasenameUrl()}Users/${getUserId()}/Items/?searchTerm=${encodeURIComponent(searchTerm)}`
       + '&IncludePeople=false&IncludeMedia=true&IncludeGenres=false&IncludeStudios=false'
       + '&IncludeArtists=false&IncludeItemTypes=Movie,Episode&Limit=3'
       + '&Fields=PrimaryImageAspectRatio%2CCanDelete%2CBasicSyncInfo%2CMediaSourceCount'
@@ -220,13 +227,19 @@ function sleep(ms: number): Promise<void> {
   return new Promise(res => setTimeout(res, ms))
 }
 
+function fetchWithTimeout(url: string, options: RequestInit = {}, ms = 5000): Promise<Response> {
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), ms)
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(id))
+}
+
 async function loggedIn(): Promise<void> {
   let newApiClient: ApiClient
 
   do {
     await sleep(125)
     newApiClient = (await presence.getPageVariable<{ ApiClient: ApiClient }>('ApiClient')).ApiClient
-  } while (!apiClient._serverInfo.AccessToken)
+  } while (!newApiClient?._serverInfo?.AccessToken)
 
   apiClient = newApiClient
 }
@@ -400,12 +413,14 @@ async function buildMediaPresence(
         }
       }
 
-      const parts: string[] = [`${mediaInfo.ProductionYear}`]
+      const parts: string[] = []
+      if (mediaInfo.ProductionYear)
+        parts.push(`${mediaInfo.ProductionYear}`)
       if (mediaInfo.Genres?.length)
         parts.push(mediaInfo.Genres.slice(0, 2).join(', '))
       if (mediaInfo.CommunityRating)
         parts.push(`★ ${mediaInfo.CommunityRating.toFixed(1)}`)
-      const stateText = parts.join(' • ')
+      const stateText = parts.join(' • ') || (mediaInfo.Name ?? 'Movie')
 
       const overview = mediaInfo.Overview
         ? truncate(mediaInfo.Overview)
@@ -447,7 +462,7 @@ async function buildMediaPresence(
       const hasFilename = /[.\\/]/.test(mediaInfo.Name ?? '')
       const epName = hasFilename
         ? (season && episode ? `Episode ${episode}` : 'Episode')
-        : mediaInfo.Name
+        : (mediaInfo.Name ?? 'Episode')
 
       const overview = mediaInfo.Overview
         ? truncate(mediaInfo.Overview)
@@ -568,15 +583,18 @@ function handleOfficialWebsite(settings: Settings): PresenceData | null {
       break
     case '/posts/':
       presenceData.state = 'Reading the latest posts'
-      presenceData.smallImageKey = Assets.Reading
+      if (settings.showSmallImages)
+        presenceData.smallImageKey = Assets.Reading
       break
     case '/clients/':
       presenceData.state = 'Checking clients'
-      presenceData.smallImageKey = Assets.Search
+      if (settings.showSmallImages)
+        presenceData.smallImageKey = Assets.Search
       break
     case '/downloads/':
       presenceData.state = 'On downloads'
-      presenceData.smallImageKey = Assets.Downloading
+      if (settings.showSmallImages)
+        presenceData.smallImageKey = Assets.Downloading
       break
     case '/contribute/':
       presenceData.state = 'Learning how to contribute'
@@ -589,7 +607,8 @@ function handleOfficialWebsite(settings: Settings): PresenceData | null {
         presenceData.state = `Reading the docs: ${document.title
           .split('|')[0]
           ?.trim()}`
-        presenceData.smallImageKey = Assets.Reading
+        if (settings.showSmallImages)
+          presenceData.smallImageKey = Assets.Reading
       }
   }
 
@@ -607,9 +626,15 @@ async function handleItemDetails(settings: Settings): Promise<PresenceData | nul
     }
   }
 
-  const data = await obtainMediaInfo(
-    new URLSearchParams(location.hash.split('?')[1]).get('id')!,
-  )
+  const itemId = new URLSearchParams(location.hash.split('?')[1] ?? '').get('id')
+  if (!itemId) {
+    return {
+      largeImageKey: ActivityAssets.Logo,
+      details: strings.browse,
+    }
+  }
+
+  const data = await obtainMediaInfo(itemId)
 
   if (!data) {
     return {
@@ -630,12 +655,14 @@ async function handleItemDetails(settings: Settings): Promise<PresenceData | nul
 
   switch (data.Type) {
     case 'Movie': {
-      const movieParts: string[] = [`${data.ProductionYear}`]
+      const movieParts: string[] = []
+      if (data.ProductionYear)
+        movieParts.push(`${data.ProductionYear}`)
       if (data.Genres?.length)
         movieParts.push(data.Genres.slice(0, 2).join(', '))
       if (data.CommunityRating)
         movieParts.push(`★ ${data.CommunityRating.toFixed(1)}`)
-      presenceData.state = movieParts.join(' • ')
+      presenceData.state = movieParts.join(' • ') || 'Movie'
       break
     }
     case 'Series': {
@@ -718,12 +745,8 @@ async function handleAudioPlayback(settings: Settings): Promise<PresenceData | n
 }
 
 async function handleVideoPlayback(settings: Settings): Promise<PresenceData | null> {
-  if (!document.querySelector('#videoOsdPage'))
-    return null
-
-  const [mediaInfo] = await searchMedia(
-    document.querySelector<HTMLHeadingElement>('h3.pageTitle')?.textContent ?? '',
-  )
+  const pageTitle = document.querySelector<HTMLHeadingElement>('h3.pageTitle')?.textContent?.trim() ?? ''
+  const [mediaInfo] = pageTitle ? await searchMedia(pageTitle) : []
 
   if (mediaInfo) {
     const info = await obtainMediaInfo(mediaInfo.Id)
@@ -749,8 +772,15 @@ async function handleRemotePlayback(settings: Settings): Promise<PresenceData | 
     document.querySelector<HTMLDivElement>('.nowPlayingImage')?.style.backgroundImage ?? '',
   ) ?? []
 
-  if (!mediaId)
-    return null
+  if (!mediaId) {
+    if (settings.privacy)
+      return null
+    return {
+      type: ActivityType.Watching,
+      largeImageKey: ActivityAssets.Logo,
+      details: 'Watching',
+    } as MediaPresenceData
+  }
 
   const mediaInfo = await obtainMediaInfo(mediaId)
   if (!mediaInfo)
