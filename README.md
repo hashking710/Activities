@@ -1,95 +1,62 @@
 <div align="center">
-    <img src="https://avatars3.githubusercontent.com/u/46326568?s=400&amp;u=15e4a4988014780288d30ffb969fd1569fec23e6&amp;v=4" alt="PreMiD logo" width="128px" style="max-width:100%;">
-    <h1>PreMiD Activities</h1>
+  <img src="https://avatars.githubusercontent.com/u/276088231?s=256" alt="Hash King" width="120" height="120">
+  <h1>Hash King's PreMiD Activities</h1>
+  <p>A personal fork of PreMiD Activities for experiments, maintained presences, and private development.</p>
+  <p>
+    <a href="https://hashking.dev"><img src="https://img.shields.io/badge/portfolio-hashking.dev-111111?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Portfolio"></a>
+    <a href="https://discord.gg/J7QBvvwhab"><img src="https://img.shields.io/badge/Discord-private%20dev-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Private development Discord"></a>
+    <a href="https://ko-fi.com/L5F821TQO2"><img src="https://img.shields.io/badge/Ko--fi-support%20the%20work-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
+  </p>
 </div>
 
-This repository contains the source code of all Activities that are available in [PreMiD's Store](https://premid.app/store). Activities enhance your Discord presence by showing what you're doing on various websites.
+This is my working fork of [PreMiD Activities](https://github.com/PreMiD/Activities). It keeps the upstream Activity library available while giving personal presences, prototypes, and site-specific experiments a home.
 
-<div align="center">
-    <a target="_blank" href="https://discord.premid.app/" title="Join our Discord!">
-        <img src="https://img.shields.io/discord/493130730549805057?label=Discord&labelColor=7289da&color=ddd&logo=premid&logoColor=fff&logoSize=auto&style=for-the-badge" alt="Join our Discord!">
-    </a>
-</div>
+## Personal Work
 
----
+- [StreamEast](websites/S/StreamEast) - live sports matches, scores, leagues, and status
+- Additional maintained or experimental presences live under [`websites/`](websites/)
 
-## Getting Started
+Personal-only activities may remain here when a site is not appropriate for the public PreMiD Activity Library. Public-ready improvements can still be proposed upstream as focused pull requests.
 
-Want to create your own Activity or modify an existing one? Great! Follow these simple steps:
+## Development
 
-1. **Set up your development environment**
-   - Install [Node.js](https://nodejs.org/) (version 20 or higher)
-   - Clone this repository: `git clone https://github.com/PreMiD/Activities.git`
-   - Navigate to the project directory: `cd Activities`
-   - Install dependencies: `npm install`
-
-2. **Learn the basics**
-   - Read our [documentation](https://docs.premid.app/) to understand how Activities work
-   - Browse through existing Activities to see examples and best practices
-
-3. **Start creating/editing**
-   - Use our CLI tool as described below to create and develop your Activity
-
-## CLI Commands
-
-The repository includes a command-line tool (`pmd`) to help you create and develop Activities easily.
-
-### Creating a New Activity
-
-To create a new Activity with all the necessary files and structure:
+Install dependencies with Node.js 20 or newer:
 
 ```bash
-npx pmd new my-activity-name
+npm install
 ```
 
-This will guide you through a setup process, asking for basic information to generate the Activity structure.
-
-### Developing an Activity
-
-Once you've created an Activity, you can develop it with live-reload functionality:
+Build or validate an activity with the local CLI:
 
 ```bash
-npx pmd dev my-activity-name
+npx pmd build "StreamEast" --validate
+npx pmd dev "StreamEast"
 ```
 
-This command will:
+The activity source lives in `websites/<letter>/<service>/`. Metadata belongs in `metadata.json`, and the presence implementation belongs in `presence.ts`.
 
-- Start a development server
-- Watch for changes in your Activity files
-- Automatically rebuild when you make changes
-- Validate your Activity against PreMiD standards
+## Syncing Upstream
 
-Useful options:
+This fork tracks the official repository through the `upstream` remote:
 
-- `--validate`: Run additional validation checks for metadata, images, etc.
+```bash
+git fetch upstream
+git switch main
+git merge upstream/main
+git push origin main
+```
 
-## Testing Your Activity
+Keep personal-only work in its own commits or branches so upstream synchronization stays straightforward and public pull requests remain focused.
 
-To test your Activity:
+## Links
 
-1. Install the [PreMiD Extension](https://premid.app/downloads) in your browser
-2. **Enable "Activity Developer Mode"** in the extension settings:
-   - Click on the PreMiD extension icon in your browser
-   - Go to settings (⚙️)
-   - Enable "Activity Developer Mode"
-3. Run the development command:
-   ```bash
-   npx pmd dev my-activity-name
-   ```
-4. The `pmd` tool will automatically send your Activity to the extension while in development mode
-5. Navigate to the website your Activity supports to see it in action
-6. Changes you make will be automatically picked up and sent to the extension
+- [Portfolio](https://hashking.dev)
+- [GitHub](https://github.com/hashking710)
+- [Private development Discord](https://discord.gg/J7QBvvwhab)
+- [Ko-fi](https://ko-fi.com/L5F821TQO2)
+- [Official PreMiD Activities](https://github.com/PreMiD/Activities)
+- [PreMiD documentation](https://docs.premid.app/)
 
-This development workflow allows you to see your changes in real-time without having to manually load the Activity each time you make a change.
+## Upstream Project
 
-## Submitting Your Activity
-
-When your Activity is ready:
-
-1. Make sure it passes all validation checks
-2. Create a Pull Request to this repository
-3. Wait for a review from our maintainers
-
-## Committing
-
-This repository strictly enforces the use of commitlint. For more information read the [Commit Convention guide](./.github/COMMIT_CONVENTION.md)
+PreMiD Activities enhance Discord Rich Presence by showing what people are doing across the web. This fork retains the upstream project structure and tooling while serving as my personal development workspace.
